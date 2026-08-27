@@ -20,12 +20,37 @@ pytest            # or: pytest -v
 before anything imports `app.config`, so test runs never touch the
 developer's real `storage/app.db`.
 
-**What's covered in Sprint 1:**
+**What's covered:**
 
 - `test_health.py` — `GET /api/v1/health` returns `{"status": "ok"}`,
   and the root `/` endpoint responds.
 - `test_database.py` — the SQLAlchemy engine connects, a session can
   execute a query, and `init_db()` runs without error.
+- `test_docx_parser.py` / `test_pdf_parser.py` — text extraction from
+  DOCX/PDF bytes, including invalid-file and empty-document cases.
+- `test_resume_parser.py` — structured extraction (skills, experience,
+  education, projects, certifications) from raw text, including
+  multi-entry splitting and regression tests for two real bugs found
+  during manual testing (experience entries bleeding into each other;
+  a project description sentence being mistaken for the next project's
+  name).
+- `test_upload_validation.py` — extension, size, empty-file,
+  missing/unsafe-filename, and signature-mismatch rejection.
+- `test_resume_api.py` — end-to-end API coverage: upload (valid DOCX/PDF,
+  unsupported type, oversized, empty document, zero-byte file), profile
+  retrieval, updates (corrections replace sections and flip
+  `source`/`verified`), and verification (state transition, idempotency,
+  and the 409 lock against editing a verified resume).
+
+Test fixtures for DOCX/PDF files are built in
+`tests/backend/helpers/pdf_docx_builders.py` rather than checked-in
+binary files, so fixtures stay easy to read/modify in review, and PDFs
+are hand-assembled as minimal valid byte streams rather than pulling in
+a PDF-generation library as a test-only dependency.
+
+`tests/backend/conftest.py` also resets the database schema and the
+upload directory before every test function, so tests never see data
+left over from a previous test.
 
 **Adding tests for a new feature:** create a new module in
 `tests/backend/`, named `test_<feature>.py`. Use `TestClient(app)` for
@@ -53,7 +78,7 @@ npm test            # runs `vitest run` (single pass, CI-friendly)
 
 For a watch-mode loop while developing: `npx vitest`.
 
-**What's covered in Sprint 1:**
+**What's covered:**
 
 - `App.test.tsx` — renders the full app shell (router + layout), asserts
   the navigation links for all four sections are present, asserts the
@@ -61,6 +86,11 @@ For a watch-mode loop while developing: `npx vitest`.
   health check to resolve to "connected". The real `api/client` module is
   mocked (`vi.mock("./api/client", ...)`) so this test never depends on a
   running backend.
+- `pages/ResumeNew.test.tsx` — renders the upload prompt, simulates
+  selecting a file and asserts a successful upload navigates to the new
+  resume's detail page, and asserts a failed upload (mocked `ApiError`)
+  surfaces the error message inline. `api/resumes` is mocked so no real
+  network call is made.
 
 **Adding tests for a new feature:** place `<Component>.test.tsx` next to
 the component. Mock `api/client` functions rather than hitting a real

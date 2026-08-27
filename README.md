@@ -26,17 +26,28 @@ See [docs/architecture.md](./docs/architecture.md) for the full design.
 
 ## Project status
 
-This repository currently implements **Sprint 1 — Project Foundation**:
-a working, tested frontend/backend skeleton with health-check
-connectivity, database wiring, and full developer documentation. Resume
-parsing, JD parsing, matching, AI tailoring, and validation are **not yet
-implemented** — see [CHANGELOG.md](./CHANGELOG.md) for progress.
+This repository currently implements:
+
+- **Sprint 1 — Project Foundation**: working, tested frontend/backend
+  skeleton with health-check connectivity, database wiring, and full
+  developer documentation.
+- **Sprint 2 — Resume Upload and Processing**: upload a PDF or DOCX
+  resume, deterministic (no-LLM) parsing into structured
+  skills/experience/education/projects/certifications, a review UI to
+  correct extracted data, and an explicit verification step. See
+  [docs/resume-processing.md](./docs/resume-processing.md).
+
+Job description parsing, matching, AI tailoring, and resume generation
+are **not yet implemented** — see [CHANGELOG.md](./CHANGELOG.md) for
+progress.
 
 ## Technology stack
 
 **Frontend:** React, TypeScript, Vite, Tailwind CSS, React Router
 **Backend:** Python, FastAPI, Pydantic, SQLAlchemy, Alembic
 **Database:** SQLite (V1)
+**Document parsing:** python-docx (DOCX), pypdf (PDF) — deterministic
+extraction, no LLM involved (see [docs/resume-processing.md](./docs/resume-processing.md))
 **AI:** Ollama (local LLM), accessed through an `AIProvider` abstraction
 so other providers can be added later without touching the rest of the app
 **Testing:** Pytest (backend), Vitest + React Testing Library (frontend)
@@ -70,7 +81,9 @@ npm run dev
 
 Open http://localhost:5173 — the Dashboard page shows a live
 "Backend API: connected" indicator once the frontend successfully
-reaches the backend's health endpoint.
+reaches the backend's health endpoint. Go to **Resumes → Upload resume**
+to try the resume upload/parsing/review/verify flow (PDF and DOCX
+supported).
 
 Full walkthrough: [docs/setup.md](./docs/setup.md).
 
@@ -93,9 +106,11 @@ add new tests.
 resume-tailor/
 ├── frontend/          React + TypeScript + Vite + Tailwind app
 ├── backend/            FastAPI + SQLAlchemy + Alembic API
-├── tests/backend/       Backend pytest suite
-├── docs/                 Architecture, setup, development, testing, contributing
-├── storage/               Shared file storage (uploads, generated docs — unused in Sprint 1)
+│   └── storage/           uploads/ (resume files) + app.db (SQLite) - gitignored
+├── tests/backend/       Backend pytest suite (+ helpers/ fixture builders)
+├── docs/                 Architecture, setup, development, resume processing,
+│                          database, API reference, testing, contributing
+├── storage/               Shared file storage (reserved for future use)
 ├── .env.example            Documented environment variables
 └── .gitignore
 ```
@@ -105,6 +120,9 @@ resume-tailor/
 - [docs/architecture.md](./docs/architecture.md) — system design, data flow, AI abstraction
 - [docs/setup.md](./docs/setup.md) — first-time setup, step by step
 - [docs/development.md](./docs/development.md) — day-to-day workflow, conventions, env vars
+- [docs/resume-processing.md](./docs/resume-processing.md) — upload, parsing, and verification flow
+- [docs/database.md](./docs/database.md) — schema and relationships
+- [docs/api.md](./docs/api.md) — REST API reference
 - [docs/testing.md](./docs/testing.md) — running and writing tests
 - [docs/contributing.md](./docs/contributing.md) — contribution workflow and rules
 

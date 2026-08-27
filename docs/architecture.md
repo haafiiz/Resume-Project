@@ -33,12 +33,15 @@ React UI  →  REST API  →  FastAPI  →  Services  →  Core business logic  
 
 ## Planned end-to-end data flow
 
-This is the target flow the foundation is built to support. None of the
-parsing/matching/AI/validation stages exist yet as of Sprint 1.
+This is the target flow the foundation is built to support.
+**Implemented as of Sprint 2:** resume upload, parsing, structured
+storage, and user review/verification (the first line below). Job
+description parsing, matching, tailoring, and validation remain
+unimplemented.
 
 ```
-Resume            →  Parse  →  Structured Resume  →  User Review  →  Verified Resume Profile
-Job Description    →  Parse  →  Structured JD Requirements
+Resume            →  Parse  →  Structured Resume  →  User Review  →  Verified Resume Profile   [implemented, Sprint 2]
+Job Description    →  Parse  →  Structured JD Requirements                                       [not yet implemented]
 
 Verified Resume Profile + JD Requirements
     →  Matching Engine
@@ -56,7 +59,7 @@ passes through a deterministic claim-validation step before a DOCX is
 generated. This is what keeps the system truth-constrained even though
 it uses an LLM.
 
-## AI abstraction (established now, implemented later)
+## AI abstraction (reserved, not yet implemented)
 
 The rest of the application must never depend on a specific AI vendor.
 All AI calls will go through an `AIProvider` interface:
@@ -68,9 +71,14 @@ AIProvider
 └── GeminiProvider       (future)
 ```
 
-Sprint 1 only reserves configuration for this (`OLLAMA_BASE_URL`,
-`OLLAMA_MODEL` in `.env.example`) and the `core/ai/` package location.
-No provider code exists yet.
+As of Sprint 2, resume parsing is fully implemented and deliberately
+**does not** use an LLM at all - see
+[docs/resume-processing.md](./resume-processing.md#why-parsing-is-deterministic-not-llm-based)
+for why. The `AIProvider` abstraction remains reserved configuration
+(`OLLAMA_BASE_URL`, `OLLAMA_MODEL`) and the `core/ai/` package location
+for a later sprint (matching/tailoring), where an LLM's structured
+output will still pass through deterministic validation before ever
+reaching a generated document.
 
 ## Backend layout
 
@@ -83,19 +91,30 @@ backend/
 │   ├── api/                REST routes (thin — delegate to services)
 │   │   └── v1/
 │   │       ├── health.py
+│   │       ├── resumes.py    upload, list, profile, update, verify
 │   │       └── router.py
-│   ├── models/             SQLAlchemy ORM models (empty in Sprint 1)
-│   ├── schemas/             Pydantic request/response contracts
-│   ├── services/            Orchestration / use-case logic
-│   ├── core/                 Core business logic, organized by domain:
-│   │   ├── matching/         (future) resume ↔ JD matching engine
-│   │   ├── ai/                (future) AIProvider abstraction + providers
-│   │   ├── parsing/           (future) resume/JD parsing
-│   │   └── generation/        (future) DOCX generation
-│   ├── repositories/        Data-access layer (only layer touching the DB directly)
-│   └── utils/                 Shared helpers
-├── alembic/                 Migrations (configured, no schema yet)
-└── tests/                    (backend tests actually live in /tests/backend, see below)
+│   ├── models/              SQLAlchemy ORM models
+│   │   └── resume.py          Resume, ResumeSection, Skill, Experience,
+│   │                            Project, Education, Certification
+│   ├── schemas/               Pydantic request/response contracts
+│   │   └── resume.py
+│   ├── services/                Orchestration / use-case logic
+│   │   └── resume_service.py      upload→parse→persist, update, verify
+│   ├── core/                       Core business logic, organized by domain:
+│   │   ├── matching/                 (future) resume ↔ JD matching engine
+│   │   ├── ai/                        (future) AIProvider abstraction + providers
+│   │   ├── parsing/                    resume/JD parsing — resume side implemented:
+│   │   │   ├── docx_parser.py            DOCX bytes -> text
+│   │   │   ├── pdf_parser.py               PDF bytes -> text
+│   │   │   └── resume_parser.py              text -> structured sections/fields
+│   │   └── generation/                  (future) DOCX generation
+│   ├── repositories/                 Data-access layer (only layer touching the DB directly)
+│   │   └── resume_repository.py
+│   └── utils/                          Shared helpers
+│       ├── file_storage.py               safe on-disk storage under storage/uploads/
+│       └── upload_validation.py            filename/extension/signature/size checks
+├── alembic/                          Migrations (resume domain tables added in Sprint 2)
+└── tests/                             (backend tests actually live in /tests/backend, see below)
 ```
 
 ## Frontend layout
@@ -109,12 +128,26 @@ frontend/
 │   ├── layout/
 │   │   ├── AppLayout.tsx       Header + nav + <Outlet />
 │   │   └── Navigation.tsx
-│   ├── pages/                  One placeholder page per top-level section:
-│   │   ├── Dashboard.tsx        (also shows live backend connectivity)
-│   │   ├── Resumes.tsx
-│   │   ├── JobDescriptions.tsx
-│   │   └── Analysis.tsx
-│   ├── api/client.ts            Minimal fetch wrapper, reads VITE_API_BASE_URL
+│   ├── pages/
+│   │   ├── Dashboard.tsx        Shows live backend connectivity
+│   │   ├── Resumes.tsx            List of uploaded resumes
+│   │   ├── ResumeNew.tsx            Upload flow (/resumes/new)
+│   │   ├── ResumeDetail.tsx           Profile view/edit/verify (/resumes/:id)
+│   │   ├── JobDescriptions.tsx          Placeholder
+│   │   └── Analysis.tsx                   Placeholder
+│   ├── components/resume/       Section editors used by ResumeDetail:
+│   │   ├── UploadForm.tsx          drag-and-drop / click-to-browse
+│   │   ├── StatusBadge.tsx
+│   │   ├── SkillsEditor.tsx
+│   │   ├── ExperienceEditor.tsx
+│   │   ├── ProjectEditor.tsx
+│   │   ├── EducationEditor.tsx
+│   │   ├── CertificationEditor.tsx
+│   │   └── editorStyles.ts           shared Tailwind class constants
+│   ├── types/resume.ts           TypeScript types mirroring backend schemas
+│   ├── api/
+│   │   ├── client.ts               Shared fetch wrapper + ApiError
+│   │   └── resumes.ts                Resume-specific endpoint calls
 │   └── test/setup.ts             Vitest + jest-dom setup
 ```
 
@@ -122,7 +155,10 @@ frontend/
 
 ```
 tests/
-└── backend/          pytest suite (health endpoint, database init)
+└── backend/          pytest suite: health, database, DOCX/PDF parsing,
+                        structured resume parsing, upload validation,
+                        resume CRUD/update/verification
+    └── helpers/         test-only fixture builders (DOCX/PDF file bytes)
 ```
 
 Frontend tests are colocated with source (`frontend/src/*.test.tsx`) since
@@ -141,14 +177,12 @@ CORS is also environment-driven (`CORS_ORIGINS`), defaulting to the Vite
 dev server's origin in development. Production deployments are expected
 to set a locked-down `CORS_ORIGINS` value via the environment.
 
-## What Sprint 1 deliberately does NOT include
+## What's still not implemented (as of Sprint 2)
 
-- No resume or JD parsing
+- No JD parsing
 - No AI provider implementation
 - No matching, tailoring, or validation engines
-- No application database schema/tables (only the connection machinery)
+- No DOCX resume generation
 - No authentication
 
-These are all planned in later sprints and are called out as "future" in
-the module layout above so the codebase's intended shape is visible even
-before the code exists.
+These are planned in later sprints.

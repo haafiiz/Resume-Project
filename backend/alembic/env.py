@@ -12,6 +12,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.config import get_settings  # noqa: E402
 from app.database import Base  # noqa: E402
+import app.models  # noqa: E402,F401  (registers all models on Base.metadata)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -30,9 +31,8 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # add your model's MetaData object here
 # for 'autogenerate' support.
-# No models are registered yet as of Sprint 1 - later sprints will import
-# their model modules (e.g. `from app.models import resume`) so their
-# tables are picked up by autogenerate.
+# `import app.models` above registers every model module on
+# Base.metadata, so autogenerate can see the full schema.
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

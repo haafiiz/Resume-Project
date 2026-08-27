@@ -4,6 +4,8 @@ import AppLayout from "../layout/AppLayout";
 import Analysis from "../pages/Analysis";
 import Dashboard from "../pages/Dashboard";
 import JobDescriptions from "../pages/JobDescriptions";
+import ResumeDetail from "../pages/ResumeDetail";
+import ResumeNew from "../pages/ResumeNew";
 import Resumes from "../pages/Resumes";
 
 export const router = createBrowserRouter([
@@ -13,6 +15,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: "resumes", element: <Resumes /> },
+      { path: "resumes/new", element: <ResumeNew /> },
+      { path: "resumes/:id", element: <ResumeDetail /> },
       { path: "job-descriptions", element: <JobDescriptions /> },
       { path: "analysis", element: <Analysis /> },
     ],

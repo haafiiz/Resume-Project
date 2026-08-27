@@ -1,0 +1,19 @@
+"""
+SQLAlchemy models package.
+
+Importing this package registers all ORM models on `Base.metadata`,
+which is required for Alembic autogenerate and for `init_db()` to create
+tables. Every new model module must be imported here.
+"""
+
+from app.models.resume import (  # noqa: F401
+    Certification,
+    Education,
+    Experience,
+    Project,
+    Resume,
+    ResumeSection,
+    ResumeStatus,
+    Skill,
+    SourceType,
+)

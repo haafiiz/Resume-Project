@@ -46,8 +46,9 @@ def get_db() -> Generator[Session, None, None]:
 def init_db() -> None:
     """Create all tables registered on Base's metadata.
 
-    In Sprint 1 there are no models yet, so this is effectively a no-op,
-    but it verifies the engine/connection is functional and gives later
-    sprints a single place to call when new models are added.
+    Imports app.models here (rather than at module load time) to avoid a
+    circular import, since models import Base from this module.
     """
+    import app.models  # noqa: F401
+
     Base.metadata.create_all(bind=engine)

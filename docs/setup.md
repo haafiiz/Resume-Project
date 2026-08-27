@@ -62,7 +62,8 @@ uvicorn app.main:app --reload
 
 The backend starts on **http://localhost:8000**. On startup it will
 create the SQLite database file (`backend/storage/app.db`) automatically
-if it doesn't already exist.
+if it doesn't already exist. Uploaded resumes are stored under
+`backend/storage/uploads/` (created automatically on first upload).
 
 Verify it's alive:
 
@@ -72,6 +73,12 @@ curl http://localhost:8000/api/v1/health
 ```
 
 Interactive API docs are available at http://localhost:8000/docs.
+
+Apply database migrations (creates the `resumes` and related tables):
+
+```bash
+alembic upgrade head
+```
 
 ## 4. Frontend setup
 

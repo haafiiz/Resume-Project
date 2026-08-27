@@ -41,9 +41,10 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3"
 
-    # --- File uploads (configuration only - not used until a later sprint) ---
+    # --- File uploads ---
     max_upload_size_mb: int = 10
     allowed_upload_extensions: str = ".pdf,.docx"
+    upload_dir: str = "./storage/uploads"
 
     @property
     def cors_origin_list(self) -> List[str]:
@@ -52,6 +53,10 @@ class Settings(BaseSettings):
     @property
     def allowed_upload_extension_list(self) -> List[str]:
         return [ext.strip() for ext in self.allowed_upload_extensions.split(",") if ext.strip()]
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        return self.max_upload_size_mb * 1024 * 1024
 
     @property
     def is_production(self) -> bool:

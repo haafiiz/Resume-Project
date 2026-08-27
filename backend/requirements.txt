@@ -7,3 +7,8 @@ alembic==1.19.1
 python-dotenv==1.2.3
 pytest==9.1.1
 httpx==0.28.1
+
+# Sprint 2 — resume upload & parsing
+python-multipart==0.0.32
+python-docx==1.2.0
+pypdf==6.16.2
