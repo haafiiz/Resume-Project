@@ -36,10 +36,15 @@ This repository currently implements:
   skills/experience/education/projects/certifications, a review UI to
   correct extracted data, and an explicit verification step. See
   [docs/resume-processing.md](./docs/resume-processing.md).
+- **Sprint 3 — Job Description Processing**: paste a job description,
+  save it, run AI-based (Ollama) requirement extraction into 9
+  structured categories with required/preferred/nice-to-have importance,
+  review and correct the results, and verify. See
+  [docs/ai-architecture.md](./docs/ai-architecture.md).
 
-Job description parsing, matching, AI tailoring, and resume generation
-are **not yet implemented** — see [CHANGELOG.md](./CHANGELOG.md) for
-progress.
+Resume ↔ JD matching, AI-assisted tailoring, claim validation, and DOCX
+generation are **not yet implemented** — see [CHANGELOG.md](./CHANGELOG.md)
+for progress.
 
 ## Technology stack
 
@@ -49,7 +54,8 @@ progress.
 **Document parsing:** python-docx (DOCX), pypdf (PDF) — deterministic
 extraction, no LLM involved (see [docs/resume-processing.md](./docs/resume-processing.md))
 **AI:** Ollama (local LLM), accessed through an `AIProvider` abstraction
-so other providers can be added later without touching the rest of the app
+(see [docs/ai-architecture.md](./docs/ai-architecture.md)) so other
+providers can be added later without touching the rest of the app
 **Testing:** Pytest (backend), Vitest + React Testing Library (frontend)
 
 ## Prerequisites
@@ -83,7 +89,11 @@ Open http://localhost:5173 — the Dashboard page shows a live
 "Backend API: connected" indicator once the frontend successfully
 reaches the backend's health endpoint. Go to **Resumes → Upload resume**
 to try the resume upload/parsing/review/verify flow (PDF and DOCX
-supported).
+supported), or **Job Descriptions → Add job description** to try the
+paste/save/extract/review/verify flow for job postings (requires a
+running [Ollama](https://ollama.com) instance for extraction to
+actually find requirements — without one, extraction still completes
+gracefully and flags the job description for manual review).
 
 Full walkthrough: [docs/setup.md](./docs/setup.md).
 
@@ -121,6 +131,7 @@ resume-tailor/
 - [docs/setup.md](./docs/setup.md) — first-time setup, step by step
 - [docs/development.md](./docs/development.md) — day-to-day workflow, conventions, env vars
 - [docs/resume-processing.md](./docs/resume-processing.md) — upload, parsing, and verification flow
+- [docs/ai-architecture.md](./docs/ai-architecture.md) — AIProvider abstraction and JD extraction
 - [docs/database.md](./docs/database.md) — schema and relationships
 - [docs/api.md](./docs/api.md) — REST API reference
 - [docs/testing.md](./docs/testing.md) — running and writing tests

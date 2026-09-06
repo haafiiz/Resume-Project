@@ -6,7 +6,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added — Sprint 2: Resume Upload and Processing
+### Added — Sprint 3: Job Description Processing
+
+- **AI provider abstraction** (`core/ai/`): `AIProvider` (`base.py`) is a
+  minimal, vendor-agnostic interface (`generate(prompt, system) -> str`)
+  with two exception types (`AIProviderUnavailableError`,
+  `AIProviderResponseError`); `OllamaProvider` implements it against a
+  local Ollama instance; `factory.py` resolves the configured provider
+  from settings. `JDService` depends only on the interface and never
+  imports `OllamaProvider` directly.
+- **JD requirement extraction** (`core/ai/jd_extraction.py`): builds the
+  extraction prompt, calls any injected `AIProvider`, and validates the
+  response against a strict Pydantic contract (`core/ai/schemas.py`) -
+  9 `requirement_type` categories × 3 `importance` levels. A response
+  missing the `requirements` key entirely is treated as malformed
+  (caught during manual testing - the field has no default, unlike an
+  explicit empty list, which is legitimately valid).
+- **Database**: `JobDescription` and `JDRequirement` models with
+  `requirement_type`, `name`, `normalized_name`, `importance`,
+  `description`, `source_text`, `verified`. Alembic migration `add job
+  description domain tables`.
+- **Deterministic normalization** (`utils/text_normalization.py`):
+  lowercase/trim/collapse-whitespace, applied to every requirement name
+  by `JDService` - never delegated to the AI.
+- **JD service** (`services/jd_service.py`): save and extract are
+  **separate steps** (`create()` vs. `extract_requirements_for()`),
+  matching the spec's explicit six-step flow. Implements the
+  `created → extracted/needs_review → verified` state machine; AI
+  failures (unavailable or malformed response) never fail the HTTP
+  request - they're recorded as `needs_review` with an explanation, and
+  the job description remains fully editable.
+- **API** (`api/v1/job_descriptions.py`):
+  - `POST /job-descriptions` — save (title/company optional, description required)
+  - `GET /job-descriptions` — list
+  - `GET /job-descriptions/{id}` — full JD with requirements
+  - `POST /job-descriptions/{id}/extract` — run AI extraction
+  - `PUT /job-descriptions/{id}` — corrections (rejected once verified)
+  - `POST /job-descriptions/{id}/verify` — mark verified (idempotent)
+- **Frontend**: `/jobs` (list), `/jobs/new` (paste-and-save), `/jobs/:id`
+  (description edit, extract button, grouped requirements editor, "Mark
+  Requirements as Verified"). New components: `JDStatusBadge`,
+  `RequirementsEditor`. `api/jobDescriptions.ts` and
+  `types/jobDescription.ts` added. Nav link and router updated from the
+  old `/job-descriptions` placeholder to `/jobs`.
+- **Testing**: 44 new backend tests (96 total) covering extraction logic
+  against a fake `AIProvider` (valid responses, markdown-fence
+  stripping, malformed JSON, wrong schema, invalid enum values,
+  provider-unavailable propagation, normalization), and the full JD API
+  (creation, empty-description rejection, extraction with a mocked
+  provider, required-vs-preferred importance, malformed AI output,
+  AI-unavailable handling - confirmed to return `200`/`needs_review`
+  rather than a 500 - corrections, verification, persistence). Also 4
+  new frontend tests for the job-creation flow. AI-unavailable behavior
+  was additionally confirmed manually against a live server with no
+  Ollama process running (a naturally-occurring case in this
+  environment, not just a mock).
+- **Documentation**: new `docs/ai-architecture.md`; updated
+  `docs/api.md`, `docs/database.md`, `docs/architecture.md`,
+  `docs/testing.md`, `README.md`.
+
+### Explicitly not included in this sprint
+
+Resume ↔ JD matching, match analysis, AI-assisted tailoring, claim
+validation, and DOCX resume generation remain out of scope and are
+planned for later sprints.
+
+## [Unreleased - Sprint 2]
 
 - **Database**: `Resume`, `ResumeSection`, `Skill`, `Experience`,
   `Project`, `Education`, `Certification` models with `source`

@@ -34,14 +34,13 @@ React UI  →  REST API  →  FastAPI  →  Services  →  Core business logic  
 ## Planned end-to-end data flow
 
 This is the target flow the foundation is built to support.
-**Implemented as of Sprint 2:** resume upload, parsing, structured
-storage, and user review/verification (the first line below). Job
-description parsing, matching, tailoring, and validation remain
-unimplemented.
+**Implemented:** resume upload/parse/review/verify (Sprint 2) and JD
+save/extract/review/verify (Sprint 3) - the first two lines below.
+Matching, tailoring, and validation remain unimplemented.
 
 ```
-Resume            →  Parse  →  Structured Resume  →  User Review  →  Verified Resume Profile   [implemented, Sprint 2]
-Job Description    →  Parse  →  Structured JD Requirements                                       [not yet implemented]
+Resume            →  Parse  →  Structured Resume  →  User Review  →  Verified Resume Profile          [implemented, Sprint 2]
+Job Description    →  Parse  →  Structured JD Requirements                                              [implemented, Sprint 3]
 
 Verified Resume Profile + JD Requirements
     →  Matching Engine
@@ -59,26 +58,28 @@ passes through a deterministic claim-validation step before a DOCX is
 generated. This is what keeps the system truth-constrained even though
 it uses an LLM.
 
-## AI abstraction (reserved, not yet implemented)
+## AI abstraction
 
 The rest of the application must never depend on a specific AI vendor.
-All AI calls will go through an `AIProvider` interface:
+All AI calls go through an `AIProvider` interface:
 
 ```
 AIProvider
-├── OllamaProvider       (local, used for V1)
+├── OllamaProvider       (implemented, Sprint 3)
 ├── OpenAIProvider       (future)
 └── GeminiProvider       (future)
 ```
 
-As of Sprint 2, resume parsing is fully implemented and deliberately
-**does not** use an LLM at all - see
-[docs/resume-processing.md](./resume-processing.md#why-parsing-is-deterministic-not-llm-based)
-for why. The `AIProvider` abstraction remains reserved configuration
-(`OLLAMA_BASE_URL`, `OLLAMA_MODEL`) and the `core/ai/` package location
-for a later sprint (matching/tailoring), where an LLM's structured
-output will still pass through deterministic validation before ever
-reaching a generated document.
+Resume parsing (Sprint 2) deliberately **does not** use an LLM at all -
+see [docs/resume-processing.md](./resume-processing.md#why-parsing-is-deterministic-not-llm-based)
+for why. Job description requirement extraction (Sprint 3) is the first
+feature to actually call an LLM, and does so entirely through the
+generic `AIProvider` interface (`app/core/ai/base.py`) - `JDService`
+never imports `OllamaProvider` directly. See
+[docs/ai-architecture.md](./ai-architecture.md) for the full design:
+the provider interface, prompt construction, structured-output
+validation, and how AI failures (unavailable / malformed response) are
+handled without ever failing the request outright.
 
 ## Backend layout
 
@@ -91,29 +92,40 @@ backend/
 │   ├── api/                REST routes (thin — delegate to services)
 │   │   └── v1/
 │   │       ├── health.py
-│   │       ├── resumes.py    upload, list, profile, update, verify
+│   │       ├── resumes.py            upload, list, profile, update, verify
+│   │       ├── job_descriptions.py     create, list, get, extract, update, verify
 │   │       └── router.py
 │   ├── models/              SQLAlchemy ORM models
-│   │   └── resume.py          Resume, ResumeSection, Skill, Experience,
-│   │                            Project, Education, Certification
+│   │   ├── resume.py          Resume, ResumeSection, Skill, Experience,
+│   │   │                        Project, Education, Certification
+│   │   └── job_description.py   JobDescription, JDRequirement
 │   ├── schemas/               Pydantic request/response contracts
-│   │   └── resume.py
+│   │   ├── resume.py
+│   │   └── job_description.py
 │   ├── services/                Orchestration / use-case logic
-│   │   └── resume_service.py      upload→parse→persist, update, verify
+│   │   ├── resume_service.py      upload→parse→persist, update, verify
+│   │   └── jd_service.py            save→extract→persist, update, verify
 │   ├── core/                       Core business logic, organized by domain:
 │   │   ├── matching/                 (future) resume ↔ JD matching engine
-│   │   ├── ai/                        (future) AIProvider abstraction + providers
-│   │   ├── parsing/                    resume/JD parsing — resume side implemented:
+│   │   ├── ai/                        AIProvider abstraction + JD extraction:
+│   │   │   ├── base.py                  AIProvider ABC + exception types
+│   │   │   ├── ollama_provider.py         Ollama HTTP client
+│   │   │   ├── factory.py                   settings -> AIProvider instance
+│   │   │   ├── schemas.py                     structured AI-output contract
+│   │   │   └── jd_extraction.py                 prompt + response validation
+│   │   ├── parsing/                    resume parsing (deterministic, no LLM):
 │   │   │   ├── docx_parser.py            DOCX bytes -> text
 │   │   │   ├── pdf_parser.py               PDF bytes -> text
 │   │   │   └── resume_parser.py              text -> structured sections/fields
 │   │   └── generation/                  (future) DOCX generation
 │   ├── repositories/                 Data-access layer (only layer touching the DB directly)
-│   │   └── resume_repository.py
+│   │   ├── resume_repository.py
+│   │   └── jd_repository.py
 │   └── utils/                          Shared helpers
 │       ├── file_storage.py               safe on-disk storage under storage/uploads/
-│       └── upload_validation.py            filename/extension/signature/size checks
-├── alembic/                          Migrations (resume domain tables added in Sprint 2)
+│       ├── upload_validation.py            filename/extension/signature/size checks
+│       └── text_normalization.py             deterministic name normalization
+├── alembic/                          Migrations (resume tables in Sprint 2, JD tables in Sprint 3)
 └── tests/                             (backend tests actually live in /tests/backend, see below)
 ```
 
@@ -133,21 +145,30 @@ frontend/
 │   │   ├── Resumes.tsx            List of uploaded resumes
 │   │   ├── ResumeNew.tsx            Upload flow (/resumes/new)
 │   │   ├── ResumeDetail.tsx           Profile view/edit/verify (/resumes/:id)
-│   │   ├── JobDescriptions.tsx          Placeholder
-│   │   └── Analysis.tsx                   Placeholder
-│   ├── components/resume/       Section editors used by ResumeDetail:
-│   │   ├── UploadForm.tsx          drag-and-drop / click-to-browse
-│   │   ├── StatusBadge.tsx
-│   │   ├── SkillsEditor.tsx
-│   │   ├── ExperienceEditor.tsx
-│   │   ├── ProjectEditor.tsx
-│   │   ├── EducationEditor.tsx
-│   │   ├── CertificationEditor.tsx
-│   │   └── editorStyles.ts           shared Tailwind class constants
-│   ├── types/resume.ts           TypeScript types mirroring backend schemas
+│   │   ├── Jobs.tsx                     List of job descriptions (/jobs)
+│   │   ├── JobNew.tsx                     Paste-and-save flow (/jobs/new)
+│   │   ├── JobDetail.tsx                    Extract/review/edit/verify (/jobs/:id)
+│   │   └── Analysis.tsx                       Placeholder
+│   ├── components/
+│   │   ├── resume/               Section editors used by ResumeDetail:
+│   │   │   ├── UploadForm.tsx      drag-and-drop / click-to-browse
+│   │   │   ├── StatusBadge.tsx
+│   │   │   ├── SkillsEditor.tsx
+│   │   │   ├── ExperienceEditor.tsx
+│   │   │   ├── ProjectEditor.tsx
+│   │   │   ├── EducationEditor.tsx
+│   │   │   ├── CertificationEditor.tsx
+│   │   │   └── editorStyles.ts       shared Tailwind class constants (reused by job/ too)
+│   │   └── job/                  Used by JobDetail:
+│   │       ├── JDStatusBadge.tsx
+│   │       └── RequirementsEditor.tsx  grouped-by-type add/remove/edit list
+│   ├── types/
+│   │   ├── resume.ts             TypeScript types mirroring backend resume schemas
+│   │   └── jobDescription.ts       TypeScript types mirroring backend JD schemas
 │   ├── api/
 │   │   ├── client.ts               Shared fetch wrapper + ApiError
-│   │   └── resumes.ts                Resume-specific endpoint calls
+│   │   ├── resumes.ts                Resume-specific endpoint calls
+│   │   └── jobDescriptions.ts          JD-specific endpoint calls
 │   └── test/setup.ts             Vitest + jest-dom setup
 ```
 
@@ -157,7 +178,9 @@ frontend/
 tests/
 └── backend/          pytest suite: health, database, DOCX/PDF parsing,
                         structured resume parsing, upload validation,
-                        resume CRUD/update/verification
+                        resume CRUD/update/verification, JD extraction
+                        logic (fake AIProvider), JD CRUD/extraction API,
+                        malformed-AI-output and AI-unavailable handling
     └── helpers/         test-only fixture builders (DOCX/PDF file bytes)
 ```
 
@@ -177,11 +200,11 @@ CORS is also environment-driven (`CORS_ORIGINS`), defaulting to the Vite
 dev server's origin in development. Production deployments are expected
 to set a locked-down `CORS_ORIGINS` value via the environment.
 
-## What's still not implemented (as of Sprint 2)
+## What's still not implemented (as of Sprint 3)
 
-- No JD parsing
-- No AI provider implementation
-- No matching, tailoring, or validation engines
+- No resume ↔ JD matching or match analysis
+- No AI-assisted tailoring
+- No claim validation engine
 - No DOCX resume generation
 - No authentication
 

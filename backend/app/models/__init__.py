@@ -17,3 +17,10 @@ from app.models.resume import (  # noqa: F401
     Skill,
     SourceType,
 )
+from app.models.job_description import (  # noqa: F401
+    Importance,
+    JDRequirement,
+    JobDescription,
+    JobDescriptionStatus,
+    RequirementType,
+)

@@ -167,6 +167,157 @@ already-verified resume is a no-op that still returns `200`.
 **Response `409`** — the resume hasn't been parsed yet (status is still
 `uploaded`) and can't be verified.
 
+## Job Descriptions
+
+See [docs/ai-architecture.md](./ai-architecture.md) for how extraction
+works (the `AIProvider` abstraction, prompt, and failure handling), and
+[docs/database.md](./database.md) for the schema.
+
+**Saving and extracting are separate steps.** `POST /job-descriptions`
+only saves the description; `POST /job-descriptions/{id}/extract` is a
+distinct call that runs AI-based extraction. This lets extraction be
+retried (e.g. if the AI provider was unavailable) without re-submitting
+the job description.
+
+### `POST /job-descriptions`
+
+Save a job description. `title` and `company` are optional; `description`
+is required and must be non-empty.
+
+**Request body**
+```json
+{
+  "title": "QA Automation Engineer",
+  "company": "Example Company",
+  "description": "Full job description text..."
+}
+```
+
+**Response `201`** — the created `JobDescriptionOut` (see `GET
+/job-descriptions/{id}` below for the shape), with `status: "created"`
+and an empty `requirements` array.
+
+**Response `422`** — `description` is missing or empty (standard FastAPI
+validation error shape).
+
+### `GET /job-descriptions`
+
+List all saved job descriptions (lightweight summaries).
+
+**Response `200`**
+```json
+[
+  {
+    "id": "b3f1c2b0-...",
+    "title": "QA Automation Engineer",
+    "company": "Example Company",
+    "status": "verified",
+    "created_at": "2026-01-01T12:00:00",
+    "updated_at": "2026-01-01T12:05:00"
+  }
+]
+```
+
+### `GET /job-descriptions/{job_description_id}`
+
+Fetch a full job description, including its extracted/entered
+requirements.
+
+**Response `200`**
+```json
+{
+  "id": "b3f1c2b0-...",
+  "title": "QA Automation Engineer",
+  "company": "Example Company",
+  "description": "Full job description text...",
+  "status": "extracted",
+  "extraction_error": null,
+  "verified_at": null,
+  "created_at": "2026-01-01T12:00:00",
+  "updated_at": "2026-01-01T12:00:00",
+  "requirements": [
+    {
+      "id": "...", "requirement_type": "required_skill", "name": "Python",
+      "normalized_name": "python", "importance": "required",
+      "description": null, "source_text": "3+ years of Python experience",
+      "verified": false
+    }
+  ]
+}
+```
+
+**Response `404`** — no job description with that id.
+
+### `POST /job-descriptions/{job_description_id}/extract`
+
+Run AI-based requirement extraction against the saved description and
+replace the requirement list with the results.
+
+This endpoint **never returns a 5xx for an AI failure**. If the AI
+provider is unreachable or returns something unusable, the response is
+still `200`, with `status: "needs_review"` and `extraction_error`
+explaining what went wrong — see
+[docs/ai-architecture.md#failure-handling](./ai-architecture.md#failure-handling).
+
+**Response `200`** — the updated `JobDescriptionOut`. `status` is
+`"extracted"` if at least one requirement was found, or
+`"needs_review"` otherwise (AI unavailable, malformed response, or a
+response that legitimately found nothing).
+
+**Response `404`** — no job description with that id.
+
+**Response `409`** — the job description is already `verified`;
+extraction can't be re-run once verified.
+
+### `PUT /job-descriptions/{job_description_id}`
+
+Correct the title/company/description, and/or the requirement list.
+Mirrors the resume domain's `PUT` contract: any scalar field omitted is
+left unchanged; if `requirements` is provided, it fully replaces the
+existing list (no partial-item PATCH).
+
+**Request body** (all fields optional)
+```json
+{
+  "title": "Senior QA Engineer",
+  "company": "Example Company",
+  "description": "...",
+  "requirements": [
+    {
+      "requirement_type": "required_skill",
+      "name": "Python",
+      "importance": "required",
+      "source_text": "3+ years of Python experience",
+      "verified": true
+    }
+  ]
+}
+```
+
+**Response `200`** — the updated `JobDescriptionOut`. If the job
+description was `created` or `needs_review` and the submitted
+`requirements` list is non-empty, `status` is promoted to `"extracted"`.
+
+**Response `404`** — no job description with that id.
+
+**Response `409`** — the job description is already `verified`.
+
+### `POST /job-descriptions/{job_description_id}/verify`
+
+Mark a job description's requirements as verified. This is the only
+state transition that will make a JD eligible for matching in a future
+sprint (enforced there via `JDService.assert_verified()`, not yet called
+by anything in this sprint since no matching engine exists yet).
+
+**Response `200`** — the updated `JobDescriptionOut`, with `status:
+"verified"` and `verified_at` set. Calling this again on an
+already-verified JD is a no-op that still returns `200`.
+
+**Response `404`** — no job description with that id.
+
+**Response `409`** — the job description hasn't been extracted yet
+(status is still `created`) and can't be verified.
+
 ## Error format
 
 All error responses follow FastAPI's default shape:

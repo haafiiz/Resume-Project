@@ -41,6 +41,20 @@ developer's real `storage/app.db`.
   retrieval, updates (corrections replace sections and flip
   `source`/`verified`), and verification (state transition, idempotency,
   and the 409 lock against editing a verified resume).
+- `test_jd_extraction.py` — `extract_requirements()` tested directly
+  against a `FakeProvider` test double (no network, no real Ollama
+  required): valid responses, markdown-fence stripping, malformed JSON,
+  wrong-shaped JSON, invalid enum values, provider-unavailable
+  propagation, and `normalize_name()` behavior.
+- `test_jd_api.py` — end-to-end API coverage: JD creation (with/without
+  optional title/company, empty-description rejection), extraction with
+  a fake AI provider injected via monkeypatching
+  `app.services.jd_service.get_ai_provider` (valid extraction,
+  normalization, required-vs-preferred importance, source_text
+  presence), malformed AI output and AI-unavailable handling (both
+  confirmed to return `200`/`needs_review` rather than a server error),
+  corrections, verification state machine, and persistence across
+  requests.
 
 Test fixtures for DOCX/PDF files are built in
 `tests/backend/helpers/pdf_docx_builders.py` rather than checked-in
@@ -91,6 +105,10 @@ For a watch-mode loop while developing: `npx vitest`.
   resume's detail page, and asserts a failed upload (mocked `ApiError`)
   surfaces the error message inline. `api/resumes` is mocked so no real
   network call is made.
+- `pages/JobNew.test.tsx` — renders the form, rejects submission with an
+  empty description without calling the API, saves a job description
+  and navigates to its detail page on success, and surfaces an inline
+  error message on failure. `api/jobDescriptions` is mocked.
 
 **Adding tests for a new feature:** place `<Component>.test.tsx` next to
 the component. Mock `api/client` functions rather than hitting a real
