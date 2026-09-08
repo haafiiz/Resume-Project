@@ -6,6 +6,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Sprint 4: Resume/JD Matching Engine
+
+- **Matching module** (`core/matching/`), pure application logic with no
+  LLM involved:
+  - `normalizer.py` — a controlled, hand-maintained alias table
+    (`CANONICAL_ALIASES`) for formatting variants (e.g. "REST API" /
+    "REST APIs" / "RESTful API" all normalize to the same value);
+    deliberately not a fuzzy/statistical stemmer, so nothing can be
+    merged that wasn't explicitly declared safe.
+  - `matcher.py` — per-requirement classification into `exact` /
+    `normalized` / `related` / `partial` / `missing` / `unknown`, plus
+    freetext-category matching (responsibilities/experience/education/
+    domain/keywords/soft-skills) via whole-word token overlap, plus
+    `analyze_requirements()` full-analysis orchestration. `partial`
+    matching is token-set-based (not substring-based) specifically so
+    "java" can never accidentally match inside "javascript".
+  - `scorer.py` — configurable weighted scoring
+    (`MATCH_WEIGHT_REQUIRED_SKILLS`, etc., default 50/25/10/5/5/5 per
+    the spec), the documented "empty category scores 1.0, not 0" rule,
+    and the mapping of 9 JD `requirement_type` values onto the 6
+    weighted categories (`technology`→required_skills,
+    `domain`/`soft_skill`→keywords).
+- **Database**: `Analysis` (overall + 6 category scores, a
+  `weights_snapshot` JSON capturing the exact weights/breakdown used, so
+  a past analysis stays reproducible even if defaults change later) and
+  `SkillMatch` (one row per JD requirement evaluated, including
+  `missing` ones, with `resume_skill_id` for skill-table matches or
+  `matched_resume_label`/`matched_resume_text` for freetext-category
+  matches). Alembic migration `add analysis and skill match tables`.
+- **Analysis service** (`services/analysis_service.py`): converts a
+  verified `Resume`/`JobDescription` pair into the plain,
+  ORM-independent shapes `core/matching` operates on, runs the engine,
+  and persists the result. **Enforces the critical rule structurally**:
+  both inputs must already be `verified` (`409` otherwise) - the service
+  has no code path that adds, infers, or "fills in" a resume skill to
+  produce a match.
+- **API** (`api/v1/analyses.py`): `POST /analyses`, `GET
+  /analyses/{id}`, `GET /analyses/{id}/matches` (includes
+  `extra_resume_skills` - verified resume skills matching no
+  requirement, informational only, never scored).
+- **Frontend**: `/analysis` rebuilt as a verified-resume ×
+  verified-job-description picker that runs an analysis and navigates
+  to it; new `/analysis/:id` shows the overall score, a weighted
+  category breakdown (`OverallScoreCard`, `ScoreBar`), and matched /
+  partial / missing / extra-skill groupings (`MatchList`).
+- **Testing**: 44 new pure-logic unit tests for `core/matching/`
+  (`test_matching_engine.py`) including a dedicated
+  `TestMandatoryFalsePositiveGuards` class proving Java/JavaScript,
+  AWS/Azure, Selenium/Playwright, and React/Angular never merge in
+  either direction, plus 20 new analysis API integration tests
+  (`test_analysis_api.py`) that reproduce the acceptance criteria
+  scenario byte-for-byte (resume: Python/Selenium/Playwright/SQL, JD:
+  Python/Selenium/Playwright/Cypress/AWS → matched
+  Python/Selenium/Playwright, missing Cypress/AWS, score 80.0,
+  reproducible). 164 backend tests total. 3 new frontend tests for the
+  analysis picker flow (14 frontend tests total).
+- **Documentation**: new `docs/matching-engine.md` (complete scoring
+  algorithm with a worked example matching the acceptance criteria
+  exactly); updated `docs/api.md`, `docs/database.md`,
+  `docs/architecture.md`, `docs/testing.md`, `README.md`.
+
+### Explicitly not included in this sprint
+
+AI-assisted tailoring, claim validation, and DOCX resume generation
+remain out of scope and are planned for later sprints.
+
+## [Unreleased - Sprint 3]
+
 ### Added — Sprint 3: Job Description Processing
 
 - **AI provider abstraction** (`core/ai/`): `AIProvider` (`base.py`) is a

@@ -41,10 +41,15 @@ This repository currently implements:
   structured categories with required/preferred/nice-to-have importance,
   review and correct the results, and verify. See
   [docs/ai-architecture.md](./docs/ai-architecture.md).
+- **Sprint 4 — Resume/JD Matching Engine**: deterministic (no-LLM)
+  matching of a verified resume against a verified job description,
+  with a transparent exact/normalized/related/partial/missing/unknown
+  classification for every requirement, a configurable weighted score,
+  and full explanations. See
+  [docs/matching-engine.md](./docs/matching-engine.md).
 
-Resume ↔ JD matching, AI-assisted tailoring, claim validation, and DOCX
-generation are **not yet implemented** — see [CHANGELOG.md](./CHANGELOG.md)
-for progress.
+AI-assisted tailoring, claim validation, and DOCX generation are **not
+yet implemented** — see [CHANGELOG.md](./CHANGELOG.md) for progress.
 
 ## Technology stack
 
@@ -89,11 +94,13 @@ Open http://localhost:5173 — the Dashboard page shows a live
 "Backend API: connected" indicator once the frontend successfully
 reaches the backend's health endpoint. Go to **Resumes → Upload resume**
 to try the resume upload/parsing/review/verify flow (PDF and DOCX
-supported), or **Job Descriptions → Add job description** to try the
+supported), **Job Descriptions → Add job description** to try the
 paste/save/extract/review/verify flow for job postings (requires a
 running [Ollama](https://ollama.com) instance for extraction to
 actually find requirements — without one, extraction still completes
-gracefully and flags the job description for manual review).
+gracefully and flags the job description for manual review), or
+**Analysis** to compare a verified resume against a verified job
+description and see a transparent, reproducible match score.
 
 Full walkthrough: [docs/setup.md](./docs/setup.md).
 
@@ -132,6 +139,7 @@ resume-tailor/
 - [docs/development.md](./docs/development.md) — day-to-day workflow, conventions, env vars
 - [docs/resume-processing.md](./docs/resume-processing.md) — upload, parsing, and verification flow
 - [docs/ai-architecture.md](./docs/ai-architecture.md) — AIProvider abstraction and JD extraction
+- [docs/matching-engine.md](./docs/matching-engine.md) — deterministic matching algorithm and scoring
 - [docs/database.md](./docs/database.md) — schema and relationships
 - [docs/api.md](./docs/api.md) — REST API reference
 - [docs/testing.md](./docs/testing.md) — running and writing tests

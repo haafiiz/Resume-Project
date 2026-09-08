@@ -46,6 +46,16 @@ class Settings(BaseSettings):
     allowed_upload_extensions: str = ".pdf,.docx"
     upload_dir: str = "./storage/uploads"
 
+    # --- Matching engine weights (must sum to 1.0) ---
+    # See core/matching/scorer.py for how these are used and
+    # docs/matching-engine.md for the full scoring algorithm.
+    match_weight_required_skills: float = 0.50
+    match_weight_responsibilities: float = 0.25
+    match_weight_experience: float = 0.10
+    match_weight_education: float = 0.05
+    match_weight_preferred_skills: float = 0.05
+    match_weight_keywords: float = 0.05
+
     @property
     def cors_origin_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

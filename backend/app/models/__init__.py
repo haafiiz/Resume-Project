@@ -24,3 +24,8 @@ from app.models.job_description import (  # noqa: F401
     JobDescriptionStatus,
     RequirementType,
 )
+from app.models.analysis import (  # noqa: F401
+    Analysis,
+    MatchType,
+    SkillMatch,
+)

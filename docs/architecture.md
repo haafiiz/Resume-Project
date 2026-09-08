@@ -34,17 +34,18 @@ React UI  →  REST API  →  FastAPI  →  Services  →  Core business logic  
 ## Planned end-to-end data flow
 
 This is the target flow the foundation is built to support.
-**Implemented:** resume upload/parse/review/verify (Sprint 2) and JD
-save/extract/review/verify (Sprint 3) - the first two lines below.
-Matching, tailoring, and validation remain unimplemented.
+**Implemented:** resume upload/parse/review/verify (Sprint 2), JD
+save/extract/review/verify (Sprint 3), and deterministic resume↔JD
+matching (Sprint 4) - everything through "Match Analysis" below.
+Tailoring and validation remain unimplemented.
 
 ```
 Resume            →  Parse  →  Structured Resume  →  User Review  →  Verified Resume Profile          [implemented, Sprint 2]
 Job Description    →  Parse  →  Structured JD Requirements                                              [implemented, Sprint 3]
 
 Verified Resume Profile + JD Requirements
-    →  Matching Engine
-    →  Match Analysis
+    →  Matching Engine                                                                                  [implemented, Sprint 4]
+    →  Match Analysis                                                                                    [implemented, Sprint 4]
     →  Tailoring Engine
     →  Structured AI Output
     →  Validation Engine
@@ -94,19 +95,27 @@ backend/
 │   │       ├── health.py
 │   │       ├── resumes.py            upload, list, profile, update, verify
 │   │       ├── job_descriptions.py     create, list, get, extract, update, verify
+│   │       ├── analyses.py               create, get, get matches
 │   │       └── router.py
 │   ├── models/              SQLAlchemy ORM models
 │   │   ├── resume.py          Resume, ResumeSection, Skill, Experience,
 │   │   │                        Project, Education, Certification
-│   │   └── job_description.py   JobDescription, JDRequirement
+│   │   ├── job_description.py   JobDescription, JDRequirement
+│   │   └── analysis.py            Analysis, SkillMatch
 │   ├── schemas/               Pydantic request/response contracts
 │   │   ├── resume.py
-│   │   └── job_description.py
+│   │   ├── job_description.py
+│   │   └── analysis.py
 │   ├── services/                Orchestration / use-case logic
 │   │   ├── resume_service.py      upload→parse→persist, update, verify
-│   │   └── jd_service.py            save→extract→persist, update, verify
+│   │   ├── jd_service.py            save→extract→persist, update, verify
+│   │   └── analysis_service.py        verify inputs→match→score→persist
 │   ├── core/                       Core business logic, organized by domain:
-│   │   ├── matching/                 (future) resume ↔ JD matching engine
+│   │   ├── matching/                 deterministic resume↔JD matching:
+│   │   │   ├── normalizer.py           controlled alias table (never fuzzy)
+│   │   │   ├── matcher.py                per-requirement classification +
+│   │   │   │                              full-analysis orchestration
+│   │   │   └── scorer.py                   weighted category scoring
 │   │   ├── ai/                        AIProvider abstraction + JD extraction:
 │   │   │   ├── base.py                  AIProvider ABC + exception types
 │   │   │   ├── ollama_provider.py         Ollama HTTP client
@@ -120,12 +129,14 @@ backend/
 │   │   └── generation/                  (future) DOCX generation
 │   ├── repositories/                 Data-access layer (only layer touching the DB directly)
 │   │   ├── resume_repository.py
-│   │   └── jd_repository.py
+│   │   ├── jd_repository.py
+│   │   └── analysis_repository.py
 │   └── utils/                          Shared helpers
 │       ├── file_storage.py               safe on-disk storage under storage/uploads/
 │       ├── upload_validation.py            filename/extension/signature/size checks
 │       └── text_normalization.py             deterministic name normalization
-├── alembic/                          Migrations (resume tables in Sprint 2, JD tables in Sprint 3)
+├── alembic/                          Migrations (resume tables in Sprint 2, JD tables
+│                                       in Sprint 3, analysis tables in Sprint 4)
 └── tests/                             (backend tests actually live in /tests/backend, see below)
 ```
 
@@ -148,7 +159,8 @@ frontend/
 │   │   ├── Jobs.tsx                     List of job descriptions (/jobs)
 │   │   ├── JobNew.tsx                     Paste-and-save flow (/jobs/new)
 │   │   ├── JobDetail.tsx                    Extract/review/edit/verify (/jobs/:id)
-│   │   └── Analysis.tsx                       Placeholder
+│   │   ├── Analysis.tsx                       Verified resume+JD picker (/analysis)
+│   │   └── AnalysisDetail.tsx                   Score + matches view (/analysis/:id)
 │   ├── components/
 │   │   ├── resume/               Section editors used by ResumeDetail:
 │   │   │   ├── UploadForm.tsx      drag-and-drop / click-to-browse
@@ -158,17 +170,23 @@ frontend/
 │   │   │   ├── ProjectEditor.tsx
 │   │   │   ├── EducationEditor.tsx
 │   │   │   ├── CertificationEditor.tsx
-│   │   │   └── editorStyles.ts       shared Tailwind class constants (reused by job/ too)
-│   │   └── job/                  Used by JobDetail:
-│   │       ├── JDStatusBadge.tsx
-│   │       └── RequirementsEditor.tsx  grouped-by-type add/remove/edit list
+│   │   │   └── editorStyles.ts       shared Tailwind class constants (reused by job/, analysis/)
+│   │   ├── job/                  Used by JobDetail:
+│   │   │   ├── JDStatusBadge.tsx
+│   │   │   └── RequirementsEditor.tsx  grouped-by-type add/remove/edit list
+│   │   └── analysis/             Used by AnalysisDetail:
+│   │       ├── OverallScoreCard.tsx  big score + category breakdown
+│   │       ├── ScoreBar.tsx            one category's weighted score bar
+│   │       └── MatchList.tsx             matched/partial/missing/extra-skills groups
 │   ├── types/
 │   │   ├── resume.ts             TypeScript types mirroring backend resume schemas
-│   │   └── jobDescription.ts       TypeScript types mirroring backend JD schemas
+│   │   ├── jobDescription.ts       TypeScript types mirroring backend JD schemas
+│   │   └── analysis.ts               TypeScript types mirroring backend analysis schemas
 │   ├── api/
 │   │   ├── client.ts               Shared fetch wrapper + ApiError
 │   │   ├── resumes.ts                Resume-specific endpoint calls
-│   │   └── jobDescriptions.ts          JD-specific endpoint calls
+│   │   ├── jobDescriptions.ts          JD-specific endpoint calls
+│   │   └── analyses.ts                   Analysis-specific endpoint calls
 │   └── test/setup.ts             Vitest + jest-dom setup
 ```
 
@@ -180,7 +198,11 @@ tests/
                         structured resume parsing, upload validation,
                         resume CRUD/update/verification, JD extraction
                         logic (fake AIProvider), JD CRUD/extraction API,
-                        malformed-AI-output and AI-unavailable handling
+                        malformed-AI-output and AI-unavailable handling,
+                        matching engine (normalizer/matcher/scorer unit
+                        tests incl. mandatory false-positive pairs), and
+                        analysis API (creation, verification guard,
+                        acceptance-criteria scenario, reproducibility)
     └── helpers/         test-only fixture builders (DOCX/PDF file bytes)
 ```
 
@@ -200,9 +222,8 @@ CORS is also environment-driven (`CORS_ORIGINS`), defaulting to the Vite
 dev server's origin in development. Production deployments are expected
 to set a locked-down `CORS_ORIGINS` value via the environment.
 
-## What's still not implemented (as of Sprint 3)
+## What's still not implemented (as of Sprint 4)
 
-- No resume ↔ JD matching or match analysis
 - No AI-assisted tailoring
 - No claim validation engine
 - No DOCX resume generation

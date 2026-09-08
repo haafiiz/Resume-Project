@@ -318,6 +318,116 @@ already-verified JD is a no-op that still returns `200`.
 **Response `409`** — the job description hasn't been extracted yet
 (status is still `created`) and can't be verified.
 
+## Analyses
+
+See [docs/matching-engine.md](./matching-engine.md) for the complete
+scoring algorithm, and [docs/database.md](./database.md#matching-engine-tables)
+for the schema.
+
+**Both inputs must be verified.** An analysis can only be created from a
+resume with `status: "verified"` and a job description with
+`status: "verified"` - this is the platform's truth constraint applied
+at the matching stage.
+
+### `POST /analyses`
+
+Run the matching engine against a specific (resume, job description)
+pair and persist the result.
+
+**Request body**
+```json
+{
+  "resume_id": "b3f1c2b0-...",
+  "job_description_id": "a7b0153c-..."
+}
+```
+
+**Response `201`**
+```json
+{
+  "id": "51a621f9-...",
+  "resume_id": "b3f1c2b0-...",
+  "job_description_id": "a7b0153c-...",
+  "overall_score": 80.0,
+  "required_skills_score": 60.0,
+  "responsibilities_score": 100.0,
+  "experience_score": 100.0,
+  "education_score": 100.0,
+  "preferred_skills_score": 100.0,
+  "keywords_score": 100.0,
+  "category_breakdown": [
+    {
+      "category": "required_skills",
+      "weight": 0.5,
+      "requirement_count": 5,
+      "score": 0.6,
+      "weighted_contribution": 0.3
+    }
+  ],
+  "weights": {
+    "required_skills": 0.5,
+    "responsibilities": 0.25,
+    "experience": 0.1,
+    "education": 0.05,
+    "preferred_skills": 0.05,
+    "keywords": 0.05
+  },
+  "created_at": "2026-01-01T12:00:00"
+}
+```
+
+Category scores not explicitly asked for by the JD (an empty category)
+report `score: 1.0` in `category_breakdown` (100.0 in the corresponding
+top-level `*_score` field) - see
+[docs/matching-engine.md#the-empty-category-rule](./matching-engine.md#the-empty-category-rule)
+for why.
+
+**Response `404`** — the resume or job description id doesn't exist.
+
+**Response `409`** — the resume or job description exists but isn't
+verified yet.
+
+### `GET /analyses/{analysis_id}`
+
+Fetch a previously created analysis (same shape as the `POST` response).
+
+**Response `200`** — the `AnalysisOut` object.
+
+**Response `404`** — no analysis with that id.
+
+### `GET /analyses/{analysis_id}/matches`
+
+Fetch the full per-requirement match breakdown for an analysis.
+
+**Response `200`**
+```json
+{
+  "analysis_id": "51a621f9-...",
+  "matches": [
+    {
+      "id": "...",
+      "jd_requirement_id": "...",
+      "requirement_type": "required_skill",
+      "requirement_name": "Cypress",
+      "scoring_category": "required_skills",
+      "resume_skill_id": null,
+      "matched_resume_label": null,
+      "matched_resume_text": null,
+      "match_type": "missing",
+      "confidence": 0.0,
+      "explanation": "No matching skill for 'Cypress' was found in the verified resume profile."
+    }
+  ],
+  "extra_resume_skills": ["SQL"]
+}
+```
+
+`extra_resume_skills` lists verified resume skills that matched no JD
+requirement in this analysis - informational only, never scored, and
+never presented as a match to anything.
+
+**Response `404`** — no analysis with that id.
+
 ## Error format
 
 All error responses follow FastAPI's default shape:

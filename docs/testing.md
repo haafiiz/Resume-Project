@@ -55,6 +55,23 @@ developer's real `storage/app.db`.
   confirmed to return `200`/`needs_review` rather than a server error),
   corrections, verification state machine, and persistence across
   requests.
+- `test_matching_engine.py` — pure unit tests (no DB, no HTTP) for
+  `core/matching/`: normalizer (formatting-variant equivalence, the four
+  mandatory false-positive pairs never sharing an alias), matcher (every
+  match type — exact/normalized/related/partial/missing/unknown —
+  including a dedicated `TestMandatoryFalsePositiveGuards` class for
+  Java/JavaScript, AWS/Azure, Selenium/Playwright, React/Angular in both
+  directions), freetext category matching, scorer (empty-category
+  neutral score, the acceptance-criteria worked example, configurable
+  weight validation, reproducibility).
+- `test_analysis_api.py` — end-to-end API coverage: the acceptance
+  criteria scenario verified byte-for-byte (score 80.0, exact
+  matched/missing sets, SQL surfaced as an extra skill never fabricated
+  as a match), the three mandatory false-positive pairs re-verified at
+  the API level, partial/missing matches, weighting behavior, the
+  empty-requirements edge case, reproducibility across repeated runs,
+  the verification guard (analysis rejected with `409` if either input
+  isn't verified), and 404/persistence coverage.
 
 Test fixtures for DOCX/PDF files are built in
 `tests/backend/helpers/pdf_docx_builders.py` rather than checked-in
@@ -109,6 +126,11 @@ For a watch-mode loop while developing: `npx vitest`.
   empty description without calling the API, saves a job description
   and navigates to its detail page on success, and surfaces an inline
   error message on failure. `api/jobDescriptions` is mocked.
+- `pages/Analysis.test.tsx` — shows an empty-state message when there
+  are no verified resumes/jobs, only offers verified (not draft) items
+  in the pickers, and runs an analysis + navigates to its detail page on
+  success. `api/resumes`, `api/jobDescriptions`, and `api/analyses` are
+  all mocked.
 
 **Adding tests for a new feature:** place `<Component>.test.tsx` next to
 the component. Mock `api/client` functions rather than hitting a real
